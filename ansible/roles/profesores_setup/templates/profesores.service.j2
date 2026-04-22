@@ -1,0 +1,33 @@
+[Unit]
+Description=Módulo Profesores - API REST (Alumno C)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/profesores
+
+# Variables de entorno
+Environment="NODE_ENV=production"
+Environment="PORT=3001"
+Environment="DB_HOST={{ db_host }}"
+Environment="DB_PORT={{ db_port }}"
+Environment="DB_USER={{ db_user }}"
+Environment="DB_PASSWORD={{ db_password }}"
+Environment="DB_NAME={{ db_name }}"
+Environment="AWS_REGION={{ aws_region }}"
+
+# Comando de inicio
+ExecStart=/usr/bin/node /opt/profesores/profesores.js
+
+# Reinicio automático
+Restart=always
+RestartSec=10
+
+# Logs
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=profesores
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,86 @@
+---
+# =============================================================================
+# Playbook: Despliegue del Módulo Profesores (Alumno C)
+# =============================================================================
+# Ejecuta todo lo necesario para desplegar el módulo de profesores en
+# las instancias de web servers asignadas al Alumno C
+#
+# Uso:
+#   ansible-playbook deploy_profesores_alumno_c.yml -v
+#
+# Variables esperadas (desde group_vars o línea de comando):
+#   - db_host: IP del servidor BD (ej: 10.0.1.10)
+#   - db_user: Usuario BD (backend)
+#   - db_password: Contraseña BD (ContraseñaSegura123)
+#   - db_name: Nombre BD (academico)
+#   - aws_region: Región AWS (eu-south-2)
+
+- name: "Despliegue: Módulo Profesores (Alumno C)"
+  hosts: linux_ufv  # Web servers en UFV
+  become: yes
+  gather_facts: yes
+
+  vars:
+    db_host: "{{ db_host | default('10.0.1.10') }}"
+    db_user: "{{ db_user | default('backend') }}"
+    db_password: "{{ db_password | default('ContraseñaSegura123') }}"
+    db_name: "{{ db_name | default('academico') }}"
+    aws_region: "{{ aws_region | default('eu-south-2') }}"
+    db_port: 5432
+
+  handlers:
+    - name: "Reload systemd"
+      systemd:
+        daemon_reload: yes
+
+    - name: "Restart profesores service"
+      systemd:
+        name: "profesores"
+        state: restarted
+
+  pre_tasks:
+    - name: "Mostrar información del host"
+      debug:
+        msg: |
+          ========================================
+          Desplegando Módulo Profesores (Alumno C)
+          ========================================
+          Host: {{ inventory_hostname }}
+          IP Privada: {{ ansible_default_ipv4.address }}
+          SO: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          BD Host: {{ db_host }}
+          ========================================
+
+  roles:
+    - profesores_setup
+
+  post_tasks:
+    - name: "Verificar que el servicio está corriendo"
+      systemd:
+        name: "profesores"
+        state: started
+        enabled: yes
+
+    - name: "Esperar a que el servicio esté listo"
+      wait_for:
+        port: 3001
+        timeout: 10
+
+    - name: "Test final: Health check"
+      uri:
+        url: "http://localhost:3001/api/profesores/health"
+        method: GET
+      register: health_result
+      retries: 5
+      delay: 2
+
+    - name: "✅ Despliegue completado"
+      debug:
+        msg: |
+          ========================================
+          ✅ PROFESORES DESPLEGADO EXITOSAMENTE
+          ========================================
+          Node: {{ inventory_hostname }}
+          API: http://{{ ansible_default_ipv4.address }}:3001
+          Health: {{ health_result.json.message }}
+          ========================================

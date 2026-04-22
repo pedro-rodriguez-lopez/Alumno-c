@@ -1,0 +1,98 @@
+---
+# =============================================================================
+# Rol: Despliegue del Módulo Profesores (Alumno C)
+# =============================================================================
+# Tareas para configurar los Web Servers del módulo profesores:
+# - Instalar dependencias Node.js
+# - Descargar el código de profesores.js
+# - Configurar Nginx como reverse proxy
+# - Crear servicio systemd
+# 
+# NOTA: La base de datos la configura el Alumno B (Database Server)
+# Este rol solo verifica conectividad a la BD
+
+- name: "Actualizar lista de paquetes"
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: "Instalar Node.js y npm"
+  apt:
+    name:
+      - nodejs
+      - npm
+      - git
+    state: present
+
+- name: "Crear directorio de la aplicación"
+  file:
+    path: "/opt/profesores"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: "Crear directorio para logs"
+  file:
+    path: "/var/log/profesores"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: "Copiar código profesores.js"
+  copy:
+    src: "/usr/local/ufv/ufv-infra/ufv-app/node/profesores.js"
+    dest: "/opt/profesores/profesores.js"
+    mode: '0755'
+  notify: "Restart profesores service"
+
+- name: "Copiar package.json"
+  copy:
+    src: "/usr/local/ufv/ufv-infra/ufv-app/node/package.json"
+    dest: "/opt/profesores/package.json"
+    mode: '0644'
+
+- name: "Instalar dependencias Node.js"
+  npm:
+    path: "/opt/profesores"
+    production: yes
+
+- name: "Crear servicio systemd para profesores"
+  template:
+    src: "profesores.service.j2"
+    dest: "/etc/systemd/system/profesores.service"
+    mode: '0644'
+  notify: "Reload systemd"
+
+- name: "Habilitar servicio profesores"
+  systemd:
+    name: "profesores"
+    enabled: yes
+    daemon_reload: yes
+
+- name: "Iniciar servicio profesores"
+  systemd:
+    name: "profesores"
+    state: started
+
+- name: "Verificar que el servicio profesores está activo"
+  systemd:
+    name: "profesores"
+    state: started
+    enabled: yes
+
+- name: "Test de health check"
+  uri:
+    url: "http://localhost:3001/api/profesores/health"
+    method: GET
+    status_code: 200
+  retries: 5
+  delay: 2
+  register: health_check
+
+- name: "Mostrar estado del servicio"
+  debug:
+    msg: "Módulo Profesores: {{ health_check.json.message }}"
+  when: health_check is success
+
